@@ -140,15 +140,18 @@ def randomDylibs():
 
 N = 10
 
+NormalFileName = "normal_generated"
+CompactFileName = "compact_generated"
+
 def generateNormalFile():
-    f = open("normal_generated.txt", "w")
+    f = open(NormalFileName + ".txt", "w")
     for i in range(N):
         line = {"app_ver": app_ver, "app_bundle": app_bundle, "contacts": randomContacts(), "dylibs": randomDylibs()}
         f.write(str(line) + "\n")
     f.close()
 
 def generateCompactFile():
-    f = open("compact_generated.txt", "w")
+    f = open(CompactFileName + ".txt", "w")
 
     lookup = {
         hashlib.md5(contacts1.encode()).hexdigest(): contacts1,
@@ -165,8 +168,57 @@ def generateCompactFile():
         f.write(str(line) + "\n")
     f.close()
 
-generateNormalFile()
-generateCompactFile()
 
-os.system("rm -f *.gz")
-os.system("gzip -k *.txt")
+def genAndCompare():
+    generateNormalFile()
+    generateCompactFile()
+
+    os.system("rm -f *.gz")
+    os.system("gzip -k *.txt")
+    # os.system("ls -l | egrep 'gz|txt' | tr -s ' ' | cut -d ' ' -f 5,9-")
+
+    file_stats1 = os.stat(NormalFileName + ".txt")
+    file_stats2 = os.stat(CompactFileName + ".txt")
+    reduction_on_text = (1 - file_stats2.st_size / file_stats1.st_size)
+
+    file_stats1 = os.stat(NormalFileName + ".txt.gz")
+    file_stats2 = os.stat(CompactFileName + ".txt.gz")
+
+    reduction_on_gz = (1 - file_stats2.st_size / file_stats1.st_size)
+    return (reduction_on_text, reduction_on_gz)
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+print("Benchmark size reduction of text compaction + gzip")
+
+
+def showResult(message, reduction):
+    if reduction < 0:
+        print(f"{message}: " + f"{bcolors.WARNING}{100 * reduction:.2f}{bcolors.ENDC}" + " %")
+    else:
+        print(f"{message}: " + f"{bcolors.OKGREEN}{100 * reduction:.2f}{bcolors.ENDC}" + " %")
+
+for count in (2, 5, 10, 20, 30, 40, 50,60,70,80,90,100):
+    N = count
+    print("Number of records N = {}".format(N))
+
+    numRun = 50
+    textReduction = 0.0
+    gzReduction = 0.0
+    for i in range(numRun):
+        result = genAndCompare()
+        textReduction += result[0]
+        gzReduction += result[1]
+
+    showResult("Avg text size reduction", textReduction/numRun)
+    showResult("Avg gzip size reduction", gzReduction/numRun)
+    print("---------------------------------")
